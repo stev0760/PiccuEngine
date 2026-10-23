@@ -5,6 +5,11 @@
 
 #include "mvelib.h"
 
+#ifdef __LINUX__
+#define _open open
+#define _read read
+#define _close close
+#endif
 #ifndef __LINUX__
 #include <io.h>
 #else

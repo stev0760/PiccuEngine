@@ -41,7 +41,7 @@
 
 #ifdef __LINUX__
 
-#include "SDL_thread.h"
+#include <SDL3/SDL_thread.h>
 
 inline void Sleep(int millis)
 {
@@ -222,7 +222,7 @@ void ChttpGet::GetFile(const char *URL,const char *localfile)
 	}
 
 //	if(df_pthread_create(&thread,NULL,HTTPObjThread,this)!=0)
-    thread = SDL_CreateThread(HTTPObjThread, this);
+    thread = SDL_CreateThread(HTTPObjThread, "http", this);
     if (thread == NULL)
 	{
 		m_State = HTTP_STATE_INTERNAL_ERROR;
@@ -822,7 +822,7 @@ int http_Asyncgethostbyname(unsigned int *ip,int command, char *hostname)
 		}
 
 //		df_pthread_create(&thread,NULL,http_gethostbynameworker,newaslu);
-        newaslu->threadId = SDL_CreateThread(http_gethostbynameworker,newaslu);
+        newaslu->threadId = SDL_CreateThread(http_gethostbynameworker, "dns", newaslu);
 #endif
 		return 1;
 	}

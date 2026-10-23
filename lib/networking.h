@@ -87,8 +87,7 @@ inline void INADDR_GET_SUN_SUNB(struct in_addr* st,unsigned char *s_b1,unsigned 
 #include <fcntl.h>
 
 //rcg06212000 my SDL adds.
-#include "SDL.h"
-#include "SDL_thread.h"
+#include <SDL3/SDL_thread.h>
 
 #include "linux/linux_fix.h"
 
@@ -121,6 +120,8 @@ inline void INADDR_GET_SUN_SUNB(struct in_addr* st,unsigned char *s_b1,unsigned 
 #define WSAENOPROTOOPT	ENOPROTOOPT
 
 inline int WSAGetLastError(){return errno;}
+#include <unistd.h>
+#define closesocket(s) close(s) // [linux-native] winsock name used by gamespy.cpp
 extern bool Use_DirectPlay;
 
 //helper macros for working with SOCKADDR_IN to make it look nicer between windows and Linux

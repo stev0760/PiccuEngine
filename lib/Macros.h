@@ -21,8 +21,19 @@
 #define SWAP(a,b) do { int _swap_var_=(a); (a)=(b); (b)=_swap_var_; } while (0)
 #define SET_MIN(a, b)  (((a) < (b)) ? (a) : (b))
 #define CHECK_FLAG(_var, _flag) ((_var) & (_flag))
+#if defined(__cplusplus) && defined(__LINUX__)
+#include <type_traits>
+// [linux-native] function templates instead of macros: libstdc++ headers use min()/max() as names.
+// They must return by value. With a trailing return type of decltype((a > b) ? a : b), two parameters of
+// the same type make that expression an lvalue, so the deduced type is T& and the function returns a
+// reference to its own by-value parameter: a dangling reference, read from a dead stack slot by the caller.
+// That broke every same-type min()/max() in the engine (ammo counts, smoke-trail blob loops, ...).
+template <typename A, typename B> constexpr inline typename std::common_type<A, B>::type max(A a, B b) { return (a > b) ? a : b; }
+template <typename A, typename B> constexpr inline typename std::common_type<A, B>::type min(A a, B b) { return (a < b) ? a : b; }
+#else
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
+#endif
 #define makeword(_h,_l) (((_h)<<16) + ((_l)&0xffff))
 #define hiword(_v) ((_v)>>16)
 #define loword(_v) ((_v)& 0x0000ffff)
@@ -30,11 +41,13 @@
 #define hibyte(_w) ((_w)>> 8)
 #define lobyte(_w) ((_w)& 0x00ff)
 #define kb_to_bytes(_kb) ((_kb) * 1024)
+#ifndef _min
 #define _min(a,b) min(a,b)
 #define _max(a,b) max(a,b)
+#endif
 #define ABS(a) ((a<0)?(-a):(a))
 
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__min)
 #define __min(a,b) min(a,b)
 #define __max(a,b) max(a,b)
 #endif

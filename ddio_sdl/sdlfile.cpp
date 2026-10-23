@@ -28,11 +28,29 @@
 #elif defined(UNIX)
 #include <unistd.h>
 #include <utime.h>
+#include <signal.h>
+#include <errno.h>
+#include <strings.h>
+#include <filesystem>
+#include "linux/linux_fix.h"
+#define _stat stat
+#ifndef _MAX_DIR
+#define _MAX_DIR 256
+#endif
 #endif
 
 #include "pserror.h"
 #include "ddio.h"
 #include "mem.h"
+
+// [linux-native] the native path separator (the SDL file layer assumed Windows)
+#ifdef WIN32
+#define DDIO_SEP '\\'
+#define DDIO_SEP_STR "\\"
+#else
+#define DDIO_SEP '/'
+#define DDIO_SEP_STR "/"
+#endif
 
 //	---------------------------------------------------------------------------
 //	File operations
@@ -62,7 +80,7 @@ bool ddio_SetWorkingDir(const char* path)
 #ifdef WIN32
 	return (SetCurrentDirectory(path)) ? true : false;
 #else
-#error "ddio_SetWorkingDir: Not implemented for current platform"
+	return chdir(path) == 0;
 #endif
 }
 
@@ -248,7 +266,7 @@ bool ddio_DirExists(const char* path)
 //		the last argument in the list of sub dirs *MUST* be NULL to terminate the list
 void ddio_MakePath(char* newPath, const char* absolutePathHeader, const char* subDir, ...)
 {
-    const char	delimiter = '\\';
+    const char	delimiter = DDIO_SEP;
     va_list		args;
     char* currentDir = NULL;
     int			pathLength = 0;
@@ -464,6 +482,7 @@ bool ddio_FindNextFile(char* namebuf)
     }
 
     ddio_FindFileFetchResult(DDIO_next_glob++, namebuf);
+    return true; // [linux-native] was missing: undefined behaviour, a crash under GCC
 }
 
 void ddio_FindFileClose()
@@ -474,6 +493,25 @@ void ddio_FindFileClose()
 
 char* ddio_GetUserDir(const char* extraname)
 {
+#ifndef WIN32
+    // [linux-native] SDL has no Saved Games folder on Linux (SDL_GetUserFolder returns NULL there, which
+    // made this an Error at start-up). Use the XDG data dir: $XDG_DATA_HOME, else ~/.local/share.
+    std::string base;
+    const char* xdg = getenv("XDG_DATA_HOME");
+    if (xdg && *xdg)
+        base = xdg;
+    else
+    {
+        const char* home = getenv("HOME");
+        if (!home)
+            return nullptr;
+        base = std::string(home) + "/.local/share";
+    }
+    base += "/";
+    if (extraname)
+        base += extraname;
+    return strdup(base.c_str());
+#endif
     const char* savepath = SDL_GetUserFolder(SDL_FOLDER_SAVEDGAMES);
 
     if (savepath == nullptr)
@@ -522,6 +560,13 @@ void ddio_GetRootFromPath(const char* srcPath, char* root_path)
 //	retrieve root names, free up roots array (allocated with malloc) after use
 int ddio_GetFileSysRoots(char** roots, int max_roots)
 {
+#ifndef WIN32
+    if (max_roots < 1)
+        return 0;
+    roots[0] = (char*)mem_malloc(2);
+    strcpy(roots[0], "/");
+    return 1;
+#else
     char buffer[100];
 
     int ret = GetLogicalDriveStrings(100, buffer);
@@ -558,6 +603,7 @@ int ddio_GetFileSysRoots(char** roots, int max_roots)
             done = true;
     }
     return count;
+#endif
 }
 
 //	given a path, it cleans it up (if the path is c:\windows\..\dos it would make it c:\dos)
@@ -576,8 +622,8 @@ void ddio_CleanPath(char* dest, const char* srcPath)
     //make sure the path ends with a \ for sanity
     path_length = strlen(dest);
 
-    if (dest[path_length - 1] != '\\') {
-        dest[path_length] = '\\';
+    if (dest[path_length - 1] != DDIO_SEP) {
+        dest[path_length] = DDIO_SEP;
         dest[path_length + 1] = '\0';
         path_length++;
     }
@@ -587,7 +633,7 @@ void ddio_CleanPath(char* dest, const char* srcPath)
     dirs = 0;
     char* strptr = dest;
     while (*strptr != '\0') {
-        if (*strptr == '\\') {
+        if (*strptr == DDIO_SEP) {
             *strptr = '\0';
             dirs++;
         }
@@ -654,13 +700,13 @@ void ddio_CleanPath(char* dest, const char* srcPath)
             break;
         else {
             strcat(dest, directories[dir_order[count]]);
-            strcat(dest, "\\");
+            strcat(dest, DDIO_SEP_STR);
         }
     }
 
     //now remove trailing \ char
     path_length = strlen(dest);
-    if ((path_length > 0) && (dest[path_length - 1] == '\\'))
+    if ((path_length > 0) && (dest[path_length - 1] == DDIO_SEP))
         dest[path_length - 1] = '\0';
 
     //free up all the allocated memory and we're done
@@ -737,7 +783,8 @@ bool ddio_CopyFile(const char* srcfile, const char* destfile)
 
     return false;
 #else
-#error "ddio_CopyFile: Not implemented for this platform!"
+    std::error_code ec;
+    return std::filesystem::copy_file(srcfile, destfile, std::filesystem::copy_options::none, ec);
 #endif
 }
 

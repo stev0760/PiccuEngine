@@ -22,6 +22,7 @@ else()
 		sdl/sdlcon.cpp
 		sdl/sdldatabase.cpp
 		sdl/sdlmono.cpp
+		sdl/sdllinux.cpp
 		sdl/sdlcontroller.h
 		sdl/registry.cpp
 		sdl/registry.h

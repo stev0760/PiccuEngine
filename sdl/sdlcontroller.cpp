@@ -18,8 +18,10 @@
 
 #include "Controller.h"
 
+#ifdef WIN32
 #include <windows.h>
 #include <process.h>
+#endif
 
 #include <math.h>
 

@@ -242,7 +242,7 @@ void ddio_SDLMouseEvent(SDL_Event& ev)
     }
 }
 
-void DDIOShowCursor(BOOL show)
+void DDIOShowCursor(bool show) // [linux-native] was BOOL
 {
     if (show)
     {
@@ -263,12 +263,12 @@ void ddio_MouseMode(int mode)
     mprintf((0, "mouse mode set to %d\n", mode));
     if (mode == MOUSE_EXCLUSIVE_MODE)
     {
-        DDIOShowCursor(FALSE);
+        DDIOShowCursor(false);
         SDL_SetWindowRelativeMouseMode(Mouse_app->GetWindow(), true);
     }
     else if (mode == MOUSE_STANDARD_MODE)
     {
-        DDIOShowCursor(TRUE);
+        DDIOShowCursor(true);
         SDL_SetWindowRelativeMouseMode(Mouse_app->GetWindow(), false);
         //ClipCursor(nullptr);
     }

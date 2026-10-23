@@ -66,7 +66,7 @@ public:
 };
 
 #if defined(SDL3)
-#include "sdl\SDLApp.h"
+#include "sdl/SDLApp.h"
 #elif defined(WIN32)
 #include "win\Win32App.h"
 #elif defined(__LINUX__)

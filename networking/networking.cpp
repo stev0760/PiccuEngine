@@ -2339,8 +2339,7 @@ async_dns_lookup *lastaslu = NULL;
 
 #ifdef __LINUX__
 int CDECLCALL gethostbynameworker(void *parm);
-#include "SDL.h"
-#include "SDL_thread.h"
+#include <SDL3/SDL_thread.h>
 
 // rcg06192000 use SDL threads.
 //#include <pthread.h>
@@ -2453,7 +2452,7 @@ int nw_Asyncgethostbyname(unsigned int *ip,int command, char *hostname)
             // rcg06192000 SDLified.
 			//pthread_t thread;
 			//dpthread_create(&thread, NULL, gethostbynameworker,newaslu);
-            aslu.threadId = SDL_CreateThread(gethostbynameworker, &aslu);
+            aslu.threadId = SDL_CreateThread(gethostbynameworker, "dns", &aslu);
 		}
 #else
 		HOSTENT *he = gethostbyname(lastaslu->host);

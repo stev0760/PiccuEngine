@@ -33,6 +33,9 @@ bool mod_FindRealFileNameCaseInsenstive(const char *directory,const char *filena
 #include <string.h>
 #if defined(__LINUX__)
 #include "linux/linux_fix.h"
+// [linux-native] the SDL build links ddio, so use its path helpers
+#define dd_SplitPath ddio_SplitPath
+#define dd_MakePath ddio_MakePath
 #endif
 #if defined(WIN32) //INSTEAD OF MAKING MODULE HAVE DEPENDENCIES, PUT THE 2 DDIO FUNCTIONS I NEED HERE
 // Split a pathname into its component parts

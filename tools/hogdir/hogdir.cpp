@@ -27,6 +27,8 @@ SOFTWARE.
 #include <stdlib.h>
 #include <string.h>
 #include <filesystem>
+#include <algorithm>
+#include <cctype>
 #include <wchar.h>
 #include <vector>
 #include <stdexcept>
@@ -138,6 +140,17 @@ void add_dir(const char* directory)
 			pathlist.push_back(file);
 		}
 	}
+
+	//The engine finds a file in a hog by a binary search with stricmp, so the entries must be sorted
+	//case-insensitively. Windows lists a directory in that order; std::filesystem on Linux does not.
+	std::sort(pathlist.begin(), pathlist.end(), [](const fileinfo_data& a, const fileinfo_data& b) {
+		for (int i = 0;; i++)
+		{
+			int ca = tolower((unsigned char)a.name[i]), cb = tolower((unsigned char)b.name[i]);
+			if (ca != cb || ca == 0)
+				return ca < cb;
+		}
+	});
 
 	//Generate the header
 	generate_header(pathlist);

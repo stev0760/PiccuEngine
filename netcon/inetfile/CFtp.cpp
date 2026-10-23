@@ -29,7 +29,7 @@ typedef int socklen_t;
 #ifdef __LINUX__
 //sorry, I'm lazy, I guess we could copy the defines
 //that we need to transalte winsock->linux into this header...but no need to now
-#include "SDL_thread.h"
+#include <SDL3/SDL_thread.h>
 #include "inetgetfile.h"
 #endif
 
@@ -201,7 +201,7 @@ CFtpGet::CFtpGet(const char *URL, const char *localfile, const char *Username,co
 	}
 
 //	if(df_pthread_create(&thread,NULL,FTPObjThread,this)!=0)
-    thread = SDL_CreateThread(FTPObjThread, this);
+    thread = SDL_CreateThread(FTPObjThread, "ftp", this);
     if (thread == NULL)
 	{
 		m_State = FTP_STATE_INTERNAL_ERROR;

@@ -100,7 +100,7 @@
 #include "linux/linux_fix.h"
 
 //Linux includes/defines
-#if !MACOSX
+#if 0 // [linux-native] IPX headers are gone from modern kernels
 #include <linux/types.h>
 #include <linux/ipx.h>
 //#include <linux/if.h>

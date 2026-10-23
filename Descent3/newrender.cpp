@@ -471,14 +471,14 @@ void AddPostFacesToBuffer(MeshBuilder& mesh, std::vector<SortableElement>& eleme
 		}
 
 		mesh.EndVertices();
-		PostDrawElement element;
-		element.facenum = lastfacenum;
-		element.texturenum = lasttmap;
-		element.lmhandle = lastlm;
-		element.range = mesh.EndIndices();
-		element.range.offset += firstIndex;
-		element.avg = avg / (float)rp.faces[lastfacenum].num_verts;
-		interactions.push_back(element);
+		PostDrawElement drawelement; // [linux-native] was a second 'element' in the loop's scope (MSVC-only)
+		drawelement.facenum = lastfacenum;
+		drawelement.texturenum = lasttmap;
+		drawelement.lmhandle = lastlm;
+		drawelement.range = mesh.EndIndices();
+		drawelement.range.offset += firstIndex;
+		drawelement.avg = avg / (float)rp.faces[lastfacenum].num_verts;
+		interactions.push_back(drawelement);
 	}
 }
 
@@ -544,13 +544,13 @@ void AddSpecFacesToBuffer(MeshBuilder& mesh, std::vector<SortableElement>& eleme
 		}
 
 		mesh.EndVertices();
-		SpecularDrawElement element;
-		element.texturenum = lasttmap;
-		element.lmhandle = lastlm;
-		element.range = mesh.EndIndices();
-		element.range.offset += firstIndex;
-		element.special = &SpecialFaces[fp.special_handle];
-		interactions.push_back(element);
+		SpecularDrawElement drawelement; // [linux-native] see above
+		drawelement.texturenum = lasttmap;
+		drawelement.lmhandle = lastlm;
+		drawelement.range = mesh.EndIndices();
+		drawelement.range.offset += firstIndex;
+		drawelement.special = &SpecialFaces[fp.special_handle];
+		interactions.push_back(drawelement);
 	}
 }
 
@@ -1204,7 +1204,8 @@ void RenderList::GatherVisible(vector& eye_pos, matrix& eye_orient, int viewroom
 	{
 		RoomChecked[viewroomnum] = 0;
 		VisibleRooms.emplace_back(viewroomnum, initialWindow);
-		AddRoom(RenderListEntry(viewroomnum, initialWindow), viewFrustum);
+		RenderListEntry rootentry(viewroomnum, initialWindow); // [linux-native] no rvalue to non-const ref
+		AddRoom(rootentry, viewFrustum);
 	}
 	else
 	{

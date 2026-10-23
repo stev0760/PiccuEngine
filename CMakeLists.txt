@@ -27,26 +27,20 @@ function(add_hog_file HOG_NAME HOG_SRC_DIR)
 		SOURCES ${HOG_SOURCES})
 endfunction()
 
-IF (UNIX)
-SET (D3_GAMEDIR "~/Descent3/")
-
-  SET(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -Wno-write-strings -m32")
-  SET(CMAKE_CXX_COMPILER "g++")
-  SET(CMAKE_CXX_FLAGS "-O0 -g -Wno-write-strings -Wno-multichar -m32")
-  SET(CMAKE_C_FLAGS "-O0 -g -m32")
-  SET(CMAKE_C_COMPILER "gcc")
-  SET(CMAKE_FIND_LIBRARY_PREFIXES "lib")
-  SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-  FIND_PACKAGE( SDL REQUIRED )
-  FIND_PACKAGE( SDL_image REQUIRED )
-MESSAGE( "SDL Include Dir is " ${SDL_INCLUDE_DIR} )
-ENDIF()
-
 IF (UNIX AND NOT APPLE)
-  MESSAGE("Building for Linux")
-
-  ADD_DEFINITIONS( -D_DEBUG -D__LINUX__ -DLINUX -D_MAX_PATH=260 -D_MAX_FNAME=256 -D_REENRANT -DMONO -D__32BIT__ -DHAVEALLOCA_H -D_USE_OGL_ACTIVE_TEXTURES)
-  SET(PLATFORM_INCLUDES "lib/linux" ${SDL_INCLUDE_DIR} )
+  # Native Linux (x86_64) build through the SDL3 path the Windows build uses with USE_SDL.
+  MESSAGE("Building for Linux (SDL3)")
+  SET (D3_GAMEDIR "~/Descent3/")
+  set(USE_SDL ON)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  find_package(SDL3 CONFIG REQUIRED)
+  find_package(OpenAL REQUIRED)
+  find_package(OpenGL REQUIRED)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -Wno-write-strings -Wno-multichar -fno-strict-aliasing")
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-strict-aliasing")
+  ADD_DEFINITIONS( -D__LINUX__ -DLINUX -DUNIX -D_MAX_PATH=260 -D_MAX_FNAME=256 -D_REENTRANT -DMONO -DHAVEALLOCA_H -D_USE_OGL_ACTIVE_TEXTURES -DSDL3)
+  # lib/linux-case: symlinks for includes whose case differs from the file on disk (Windows is case-blind)
+  SET(PLATFORM_INCLUDES "lib/linux" "lib/linux-case" ${OPENAL_INCLUDE_DIR})
 ENDIF()
 
 IF (APPLE)
@@ -99,8 +93,8 @@ IF (WIN32)
 	SET (MIN_PLATFORM_LIBS wsock32.lib wininet.lib)
 ENDIF()
 IF (UNIX AND NOT APPLE)
-	SET (PLATFORM_LIBS ${SDL_LIBRARY} caca asound audio esd aa directfb m dl GLU)
-	SET (MIN_PLATFORM_LIBS ${PLATFORM_LIBS}) #todo
+	SET (PLATFORM_LIBS SDL3::SDL3 ${OPENAL_LIBRARY} OpenGL::GL m dl pthread)
+	SET (MIN_PLATFORM_LIBS m dl pthread)
 ENDIF()
 IF (APPLE)
 	SET (PLATFORM_LIBS ${SDL_LIBRARY} ncurses )
@@ -128,11 +122,10 @@ IF (WIN32)
 	ADD_SUBDIRECTORY (dd_sndlib)
 ENDIF()
 
-IF (UNIX)
-ADD_SUBDIRECTORY(linux)
-ADD_SUBDIRECTORY(dd_lnxsound)
-ADD_SUBDIRECTORY(lnxcontroller)
-ADD_SUBDIRECTORY(ddio_lnx)
+IF (UNIX AND NOT APPLE)
+ADD_SUBDIRECTORY (ddio_sdl)
+ADD_SUBDIRECTORY (sdl)
+ADD_SUBDIRECTORY (dd_sndlib)
 ENDIF()
 
 ADD_SUBDIRECTORY (ddio_common)
@@ -232,12 +225,12 @@ SET (DESCENT3_SOURCES
 	Descent3.manifest)
 ENDIF()
 
-IF (UNIX)
+IF (UNIX AND NOT APPLE)
 SET (DESCENT3_SOURCES
 	${DESCENT3_SOURCES}
-	${LINUX_SOURCES}
-	${DD_LNXSOUND_SOURCES}
-	${DDIO_SOURCES})
+	${DDIO_SDL_SOURCES}
+	${SDL3_SOURCES}
+	${DD_SNDLIB_SOURCES})
 ENDIF()
 
 add_executable(PiccuEngine ${DESCENT3_SOURCES})
@@ -251,7 +244,7 @@ IF (WIN32)
 ENDIF()
 
 IF (UNIX AND NOT APPLE)
-	target_link_options(PiccuEngine PUBLIC /usr/lib/libpulse-simple.so.0)
+	target_link_options(PiccuEngine PUBLIC -rdynamic)
 ENDIF()
 	
 IF (APPLE)
@@ -265,9 +258,55 @@ target_compile_definitions(PiccuEngine PUBLIC -DMONO "$<$<CONFIG:MINSIZEREL>:REL
 target_compile_definitions(PiccuEngine PUBLIC -DMONO "$<$<CONFIG:RELWITHDEBINFO>:RELEASE>")
 target_compile_definitions(PiccuEngine PUBLIC -DSDLKEY) #non-main projects see the SDL app but don't bundle SDL. 
 
+IF (UNIX AND NOT APPLE)
+# [linux-native] DMFC links statically into each netgame (as in the original game), so a netgame .d3m
+# is one self-contained shared object; the netgames are built here and named as the retail ones,
+# because a client loads the netgame the server names (robo-anarchy, team anarchy, ...).
+add_library(dmfc STATIC ${DMFC_SOURCES})
+target_compile_definitions(dmfc PUBLIC -DOUTRAGE_VERSION)
+target_include_directories(dmfc PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/netgames/includes" "${CMAKE_CURRENT_SOURCE_DIR}/Descent3")
+foreach(NG anarchy coop ctf entropy hoard hyperanarchy monsterball roboanarchy tanarchy)
+	add_subdirectory(netgames/${NG})
+	set_target_properties(${NG} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/netgames")
+endforeach()
+set_target_properties(coop PROPERTIES OUTPUT_NAME "co-op")
+set_target_properties(hyperanarchy PROPERTIES OUTPUT_NAME "hyper-anarchy")
+set_target_properties(roboanarchy PROPERTIES OUTPUT_NAME "robo-anarchy")
+set_target_properties(tanarchy PROPERTIES OUTPUT_NAME "team anarchy")
+set_target_properties(TCP-IP Tracker PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/online")
+
+# [linux-native] the level and object scripts as .so, packed with Piccu's own string tables into d3-linux.hog.
+# A script refuses to load unless CHECKSUM equals the engine's Osiris_CreateGameChecksum(), which depends on
+# struct sizes: 2273873307 is the 32-bit value; this x86_64 build computes 2273889867 (read from the running engine).
+set(PICCU_OSIRIS_CHECKSUM "2273889867" CACHE STRING "OSIRIS game checksum the scripts are built for")
+# the script list of scripts/CMakeLists.txt (the shipped scripts; test scripts left out)
+set(PICCU_SCRIPT_LIST aigame2 AIGame3 aigame4 AIGame barney BatteriesIncluded BossCamera CanyonsCTF CellTestLevel
+	ChrisTest clutter GameGauge generic Geodomes HalfPipe InfernalBolt Inversion LEVEL0 level10 level11 Level12 level13
+	level14 LEVEL15 Level16 level17 level1 level2 level3 level4 level5 Level6 level7 level8 Level9 LevelS1 levelS2 Merc02
+	Merc1 Merc3 Merc4 merc5 Merc6 Merc7 myPowerHouse Mysterious_Isle orbital Paranoia PiccuStation Polaris Quadsomniac
+	RudeAwakening SewerRat testscript TrainingMission Y2K)
+set(PICCU_SCRIPT_STAGE "${CMAKE_BINARY_DIR}/scripthog")
+file(MAKE_DIRECTORY "${PICCU_SCRIPT_STAGE}")
+file(GLOB PICCU_SCRIPT_DATA "${CMAKE_CURRENT_SOURCE_DIR}/scripts/data/linuxfullhog/*")
+list(FILTER PICCU_SCRIPT_DATA EXCLUDE REGEX "(Makefile|d3linuxfullhog\\.txt)$")
+file(COPY ${PICCU_SCRIPT_DATA} DESTINATION "${PICCU_SCRIPT_STAGE}")
+set(PICCU_SCRIPT_TARGETS)
+foreach(SCRIPT ${PICCU_SCRIPT_LIST})
+	add_library(script_${SCRIPT} SHARED scripts/linux_lib.cpp "scripts/${SCRIPT}.cpp")
+	set_target_properties(script_${SCRIPT} PROPERTIES PREFIX "" OUTPUT_NAME "${SCRIPT}" LIBRARY_OUTPUT_DIRECTORY "${PICCU_SCRIPT_STAGE}")
+	target_compile_definitions(script_${SCRIPT} PRIVATE CHECKSUM=${PICCU_OSIRIS_CHECKSUM}UL)
+	target_include_directories(script_${SCRIPT} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/scripts")
+	list(APPEND PICCU_SCRIPT_TARGETS script_${SCRIPT})
+endforeach()
+add_custom_target(d3_linux_hog ALL
+	COMMAND hogdir "${CMAKE_BINARY_DIR}/d3-linux.hog" "${PICCU_SCRIPT_STAGE}"
+	DEPENDS hogdir ${PICCU_SCRIPT_TARGETS}
+	COMMENT "Packing d3-linux.hog")
+ELSE()
 add_library(dmfc SHARED ${DMFC_SOURCES})
 target_compile_definitions(dmfc PUBLIC -DOUTRAGE_VERSION -DDMFC_DLL)
 target_include_directories(dmfc PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/netgames/includes")
+ENDIF()
 add_dependencies(PiccuEngine revision_check piccuengine_hog TCP-IP Tracker dmfc)
 	
 install(TARGETS PiccuEngine DESTINATION ${D3_GAMEDIR})

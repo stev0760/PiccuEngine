@@ -29,7 +29,6 @@ SET (RENDERER_SOURCES
 		
 		#GLAD gl loader
 		renderer/gl.c
-		renderer/wgl.c
 		
 		#3D system
 		renderer/clipper.cpp
@@ -39,4 +38,7 @@ SET (RENDERER_SOURCES
 		renderer/setup.cpp
 		renderer/transforms.cpp)
 
+if (WIN32)
+	set (RENDERER_SOURCES ${RENDERER_SOURCES} renderer/wgl.c)
+endif()
 set (RENDERER_SOURCES ${RENDERER_SOURCES} PARENT_SCOPE)
